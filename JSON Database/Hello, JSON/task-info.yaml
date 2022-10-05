@@ -1,0 +1,846 @@
+type: edu
+files:
+- name: src/client/Main.java
+  visible: true
+  text: |
+    package client;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: src/server/Main.java
+  visible: true
+  text: |
+    package server;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: test/JsonFinder.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.exception.outcomes.WrongAnswer;
+
+    import java.util.regex.Matcher;
+    import java.util.regex.Pattern;
+
+    public class JsonFinder {
+
+        private static final Pattern pattern = Pattern.compile("\\{.+}");
+
+        public static String findRequestJsonObject(String output) {
+
+            Matcher matcher = pattern.matcher(output);
+
+            while (matcher.find()) {
+                String json = matcher.group();
+                if (json.contains("type")) {
+                    return json;
+                }
+            }
+
+            throw new WrongAnswer("Can't find request JSON object in the output.\n" +
+                    "It should contain 'type' key");
+        }
+
+        public static String findResponseJsonObject(String output) {
+
+            Matcher matcher = pattern.matcher(output);
+
+            while (matcher.find()) {
+                String json = matcher.group();
+                if (json.contains("response")) {
+                    return json;
+                }
+            }
+
+            throw new WrongAnswer("Can't find request JSON object in the output.\n" +
+                    "It should contain 'response' key");
+        }
+    }
+  learner_created: false
+- name: test/JsonDatabaseTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.dynamic.DynamicTest;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testing.TestedProgram;
+
+    import static org.hyperskill.hstest.testing.expect.Expectation.expect;
+    import static org.hyperskill.hstest.testing.expect.json.JsonChecker.isObject;
+
+    public class JsonDatabaseTest extends StageTest<String> {
+
+        private static final String OK_STATUS = "OK";
+        private static final String ERROR_STATUS = "ERROR";
+        private static final String NO_SUCH_KEY_REASON = "No such key";
+        private static final String WRONG_EXIT = "The server should stop when client sends 'exit' request";
+
+        @DynamicTest(order = 1)
+        CheckResult checkExit() {
+
+            TestedProgram server = getServer();
+            server.startInBackground();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            TestedProgram client = getClient();
+            client.start("-t", "exit");
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            if (!server.isFinished()) {
+                server.stop();
+                return CheckResult.wrong(WRONG_EXIT);
+            }
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 2)
+        CheckResult testInputs() {
+
+            TestedProgram server = getServer();
+            server.startInBackground();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            TestedProgram client;
+            String output;
+            String expectedValue;
+
+            client = getClient();
+            output = client.start("-t", "get", "-k", "1");
+
+            String requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "get")
+                    .value("key", "1")
+                );
+            String responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", ERROR_STATUS)
+                    .value("reason", NO_SUCH_KEY_REASON)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "set", "-k", "1", "-v", "Hello world!");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "set")
+                    .value("key", "1")
+                    .value("value", "Hello world!")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", OK_STATUS)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "set", "-k", "1", "-v", "HelloWorld!");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "set")
+                    .value("key", "1")
+                    .value("value", "HelloWorld!")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", OK_STATUS)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "get", "-k", "1");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "get")
+                    .value("key", "1")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", OK_STATUS)
+                    .value("value", "HelloWorld!")
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "delete", "-k", "1");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "delete")
+                    .value("key", "1")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", OK_STATUS)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "delete", "-k", "1");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "delete")
+                    .value("key", "1")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", ERROR_STATUS)
+                    .value("reason", NO_SUCH_KEY_REASON)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "get", "-k", "1");
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "get")
+                    .value("key", "1")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", ERROR_STATUS)
+                    .value("reason", NO_SUCH_KEY_REASON)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "set", "-k", "text", "-v", "Some text here");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "set")
+                    .value("key", "text")
+                    .value("value", "Some text here")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", OK_STATUS)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "get", "-k", "text");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "get")
+                    .value("key", "text")
+                );
+            expectedValue = "Some text here";
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", OK_STATUS)
+                    .value("value", expectedValue)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "get", "-k", "56");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "get")
+                    .value("key", "56")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", ERROR_STATUS)
+                    .value("reason", NO_SUCH_KEY_REASON)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "delete", "-k", "56");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "delete")
+                    .value("key", "56")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", ERROR_STATUS)
+                    .value("reason", NO_SUCH_KEY_REASON)
+                );
+
+
+            client = getClient();
+            output = client.start("-t", "delete", "-k", "100");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "delete")
+                    .value("key", "100")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", ERROR_STATUS)
+                    .value("reason", NO_SUCH_KEY_REASON)
+                );
+
+            client = getClient();
+            output = client.start("-t", "delete", "-k", "That key doesn't exist");
+
+            requestJson = JsonFinder.findRequestJsonObject(output);
+            expect(requestJson)
+                .asJson()
+                .check(isObject()
+                    .value("type", "delete")
+                    .value("key", "That key doesn't exist")
+                );
+            responseJson = JsonFinder.findResponseJsonObject(output);
+            expect(responseJson)
+                .asJson()
+                .check(isObject()
+                    .value("response", ERROR_STATUS)
+                    .value("reason", NO_SUCH_KEY_REASON)
+                );
+
+
+            client = getClient();
+            client.start("-t", "exit");
+
+            return CheckResult.correct();
+        }
+
+        private static TestedProgram getClient() {
+            return new TestedProgram("client");
+        }
+
+        private static TestedProgram getServer() {
+            return new TestedProgram("server");
+        }
+
+    }
+  learner_created: false
+- name: src/server/dao/impl/InMemoryTextDao.java
+  visible: true
+  text: |
+    package server.dao.impl;
+
+    import server.exception.EmptyCellException;
+    import server.dao.ITextDao;
+
+    import java.util.Arrays;
+
+    public class InMemoryTextDao implements ITextDao {
+        private final String[] cells;
+
+        public InMemoryTextDao() {
+            this.cells = new String[1000];
+            Arrays.fill(cells, "");
+        }
+
+        @Override
+        public String getText(int index) {
+            if(cells[index].isEmpty()) {
+                throw new EmptyCellException("The cell is empty");
+            }
+            return cells[index];
+        }
+
+        @Override
+        public void setText(int index, String text) {
+            cells[index] = text;
+        }
+
+        @Override
+        public void deleteText(int index) {
+            cells[index] = "";
+        }
+    }
+  learner_created: true
+- name: src/client/ClientApp.java
+  visible: true
+  text: |
+    package client;
+
+    import com.beust.jcommander.Parameter;
+    import server.model.Request;
+
+    import java.io.*;
+    import java.net.Socket;
+
+    public class ClientApp {
+        private final Socket socket;
+
+        public ClientApp(Socket socket) {
+            this.socket = socket;
+        }
+
+        public void run(Request request) {
+            System.out.println("Client started!");
+            try (
+                    DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
+                    DataInputStream inputStream = new DataInputStream(socket.getInputStream())
+            ) {
+                ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+                objectOutputStream.writeObject(request);
+                String result = inputStream.readUTF();
+                System.out.printf("""
+                        Sent: %s
+                        Received: %s
+                        """, request.toString(), result);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/DeleteCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class DeleteCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public DeleteCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public String execute(Request request) {
+            try {
+                int index = request.getIndex();
+                dictionaryService.deleteText(index);
+                return "OK";
+            } catch (IndexOutOfBoundsException e) {
+               return "ERROR";
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "delete";
+        }
+    }
+  learner_created: true
+- name: src/server/dao/ITextDao.java
+  visible: true
+  text: |
+    package server.dao;
+
+    public interface ITextDao {
+        String getText(int index);
+        void setText(int index, String text);
+        void deleteText(int index);
+    }
+  learner_created: true
+- name: src/server/processor/ICommandProcessor.java
+  visible: true
+  text: |
+    package server.processor;
+
+    import server.model.Request;
+
+    public interface ICommandProcessor {
+        String getSupportedTitle();
+        String execute(Request request);
+    }
+  learner_created: true
+- name: src/server/exception/EmptyCellException.java
+  visible: true
+  text: |
+    package server.exception;
+
+    public class EmptyCellException extends RuntimeException {
+        public EmptyCellException(String msg) {
+            super(msg);
+        }
+    }
+  learner_created: true
+- name: src/server/ServerApp.java
+  visible: true
+  text: |
+    package server;
+
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.processor.ProcessorFactory;
+    import server.utils.Constants;
+
+    import java.io.DataInputStream;
+    import java.io.DataOutputStream;
+    import java.io.IOException;
+    import java.io.ObjectInputStream;
+    import java.net.ServerSocket;
+    import java.net.Socket;
+    import java.util.regex.Matcher;
+
+    public class ServerApp {
+        private final ServerSocket serverSocket;
+        private final ProcessorFactory factory;
+
+        public ServerApp(ProcessorFactory factory, ServerSocket serverSocket) {
+            this.serverSocket = serverSocket;
+            this.factory = factory;
+        }
+
+        public void run() {
+            System.out.println("Server started!");
+            while (true) {
+                try (
+                        Socket socket = serverSocket.accept();
+                        DataInputStream inputStream = new DataInputStream(socket.getInputStream());
+                        DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream())
+                ) {
+                    ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
+                    Request clientRequest = (Request) objectInputStream.readObject();
+                    if (clientRequest.getCommand().equals("exit")) {
+                        outputStream.writeUTF("OK");
+                        return;
+                    }
+                    ICommandProcessor processor = factory.getProcessor(clientRequest.getCommand());
+                    String result = processor.execute(clientRequest);
+                    outputStream.writeUTF(result);
+                } catch (IOException | ClassNotFoundException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+  learner_created: true
+- name: src/server/utils/Validator.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import java.util.regex.Matcher;
+
+    public class Validator {
+        public static boolean validateRequest(String request) {
+            Matcher matcher = Constants.REQUEST_PATTERN.matcher(request);
+            return matcher.matches();
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/GetCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.exception.EmptyCellException;
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class GetCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public GetCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public String execute(Request request) {
+            try {
+                int index = request.getIndex();
+                return dictionaryService.getText(index);
+            } catch (IndexOutOfBoundsException | EmptyCellException e) {
+                return "ERROR";
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "get";
+        }
+
+    }
+  learner_created: true
+- name: src/server/processor/ProcessorFactory.java
+  visible: true
+  text: |
+    package server.processor;
+
+    import java.util.List;
+    import java.util.Map;
+    import java.util.function.Function;
+    import java.util.stream.Collectors;
+
+    public class ProcessorFactory {
+        private final Map<String, ICommandProcessor> processors;
+
+        public ProcessorFactory(List<ICommandProcessor> processors) {
+            this.processors = processors.stream().collect(Collectors.toMap(ICommandProcessor::getSupportedTitle, Function.identity()));
+        }
+
+        public ICommandProcessor getProcessor(String title) {
+            return processors.get(title);
+        }
+    }
+  learner_created: true
+- name: src/server/utils/Constants.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import java.util.regex.Pattern;
+
+    public class Constants {
+        public static final Pattern REQUEST_PATTERN = Pattern.compile("^(delete|get) (\\d+)|(set) (\\d+) (\\w+)|exit$");
+        public static final String ADDRESS = "127.0.0.1";
+        public static final int PORT = 35612;
+        public static final Pattern CLIENT_SERVER_REQUEST_PATTERN = Pattern.compile("^(Give me a record # )(\\d+)$");
+    }
+  learner_created: true
+- name: src/server/utils/ConsoleReader.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import server.model.Request;
+
+    import java.util.Scanner;
+
+    public class ConsoleReader {
+        private static final Scanner scanner = new Scanner(System.in);
+
+        public static String readText() {
+            return scanner.nextLine();
+        }
+    }
+  learner_created: true
+- name: src/server/service/impl/DictionaryService.java
+  visible: true
+  text: |
+    package server.service.impl;
+
+    import server.dao.ITextDao;
+    import server.service.IDictionaryService;
+
+    public class DictionaryService implements IDictionaryService {
+        private final ITextDao textDao;
+
+        public DictionaryService(ITextDao textDao) {
+            this.textDao = textDao;
+        }
+
+        @Override
+        public String getText(int index) {
+            return textDao.getText(index);
+        }
+
+        @Override
+        public void setText(int index, String text) {
+            textDao.setText(index, text);
+        }
+
+        @Override
+        public void deleteText(int index) {
+            textDao.deleteText(index);
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/SetCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class SetCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public SetCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public String execute(Request request) {
+           try {
+               int index = request.getIndex();
+               String argument = request.getArgument();
+               dictionaryService.setText(index, argument);
+               return "OK";
+           } catch (Exception e) {
+               return "ERROR";
+           }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "set";
+        }
+    }
+  learner_created: true
+- name: src/server/service/IDictionaryService.java
+  visible: true
+  text: |
+    package server.service;
+
+    public interface IDictionaryService {
+        String getText(int index);
+        void setText(int index, String text);
+        void deleteText(int index);
+    }
+  learner_created: true
+- name: src/server/dao/impl/JSONTextDao.java
+  visible: true
+  learner_created: true
+- name: src/server/model/Response.java
+  visible: true
+  learner_created: true
+- name: src/server/model/ErrorResponse.java
+  visible: true
+  learner_created: true
+- name: src/client/builder/BuilderFactory.java
+  visible: true
+  learner_created: true
+- name: src/client/builder/IRequestBuilder.java
+  visible: true
+  learner_created: true
+- name: src/client/model/Input.java
+  visible: true
+  learner_created: true
+- name: src/client/model/Request.java
+  visible: true
+  text: |
+    package server.model;
+
+    import com.beust.jcommander.Parameter;
+
+    import java.io.Serializable;
+
+    public class Request implements Serializable {
+        @Parameter(names = {"-t"})
+        private String command;
+        @Parameter(names = {"-i"})
+        private int index;
+        @Parameter(names = {"-m"})
+        private String argument;
+
+        public String getCommand() {
+            return command;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+        public String getArgument() {
+            return argument;
+        }
+
+        @Override
+        public String toString() {
+            return getNotNull(command) + " " + index + " " + getNotNull(argument);
+        }
+
+        private String getNotNull(String str) {
+            return str == null ? "" : str;
+        }
+    }
+  learner_created: true
+- name: src/client/builder/impl/RequestBuilder.java
+  visible: true
+  learner_created: true
+- name: src/client/model/SetTextRequest.java
+  visible: true
+  learner_created: true
+- name: src/client/model/GetDeleteRequest.java
+  visible: true
+  learner_created: true
+- name: src/client/builder/impl/GetDeleteRequestBuilder.java
+  visible: true
+  learner_created: true
+- name: src/client/builder/impl/SetTextRequestBuilder.java
+  visible: true
+  learner_created: true
+- name: src/server/utils/db.json
+  visible: true
+  learner_created: true
+- name: src/server/model/SuccessfulResponse.java
+  visible: true
+  learner_created: true
+feedback_link: https://hyperskill.org/learn/step/5493#comment
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Fri, 30 Sep 2022 14:19:19 UTC
+record: 4

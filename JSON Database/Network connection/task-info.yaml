@@ -1,0 +1,554 @@
+type: edu
+files:
+- name: src/client/Main.java
+  visible: true
+  text: |
+    package client;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: src/server/Main.java
+  visible: true
+  text: |
+    package server;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: test/JsonDatabaseTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.dynamic.DynamicTest;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testing.TestedProgram;
+
+    public class JsonDatabaseTest extends StageTest<String> {
+
+        private static final String CORRECT_SERVER_OUTPUT =
+            "Server started!\n" +
+                "Received: Give me a record # N\n" +
+                "Sent: A record # N was sent!";
+
+        private static final String CORRECT_CLIENT_OUTPUT =
+            "Client started!\n" +
+                "Sent: Give me a record # N\n" +
+                "Received: A record # N was sent!";
+
+        @DynamicTest(order = 1)
+        CheckResult test() {
+
+            TestedProgram server = new TestedProgram("server");
+            server.startInBackground();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            String serverOutput = server.getOutput().trim();
+
+            if (!serverOutput.trim().equals("Server started!")) {
+                return CheckResult.wrong("Server output should be 'Server started!' until a client connects!");
+            }
+
+            TestedProgram client = new TestedProgram("client");
+
+            String clientOutput = client.start();
+            serverOutput += "\n" + server.getOutput();
+
+            String[] serverOutputLines = serverOutput.split("\n");
+
+            if (serverOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the server output should contain 3 lines!");
+            }
+
+            String serverOutputLastLine = serverOutputLines[serverOutputLines.length - 1];
+
+            if (!serverOutputLastLine.contains("Sent: A record #") || !serverOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Server output after client connects to the server should be:\n"
+                    + CORRECT_SERVER_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + serverOutput);
+            }
+
+            String[] clientOutputLines = clientOutput.split("\n");
+
+            if (clientOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the client output should contain 3 lines!");
+            }
+
+            String clientOutputLastLine = clientOutputLines[clientOutputLines.length - 1];
+
+            if (!clientOutputLastLine.contains("Received: A record #") || !clientOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Client output after client connects to the server should be:\n"
+                    + CORRECT_CLIENT_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + clientOutput);
+            }
+
+            return CheckResult.correct();
+        }
+    }
+  learner_created: false
+- name: src/server/model/SetTextRequest.java
+  visible: true
+  text: |
+    package server.model;
+
+    public class SetTextRequest extends Request {
+        private final String argument;
+
+        public SetTextRequest(int index, String argument) {
+            super(index);
+            this.argument = argument;
+        }
+
+        public String getArgument() {
+            return argument;
+        }
+    }
+  learner_created: true
+- name: src/server/dao/impl/InMemoryTextDao.java
+  visible: true
+  text: |
+    package server.dao.impl;
+
+    import server.exception.EmptyCellException;
+    import server.dao.ITextDao;
+
+    import java.util.Arrays;
+
+    public class InMemoryTextDao implements ITextDao {
+        private final String[] cells;
+
+        public InMemoryTextDao() {
+            this.cells = new String[100];
+            Arrays.fill(cells, "");
+        }
+
+        @Override
+        public String getText(int index) {
+            if(cells[index].isEmpty()) {
+                throw new EmptyCellException("The cell is empty");
+            }
+            return cells[index];
+        }
+
+        @Override
+        public void setText(int index, String text) {
+            cells[index] = text;
+        }
+
+        @Override
+        public void deleteText(int index) {
+            cells[index] = "";
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/DeleteCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class DeleteCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public DeleteCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public void execute(Request request) {
+            try {
+                int index = request.getIndex();
+                dictionaryService.deleteText(index);
+                System.out.println("OK");
+            } catch (IndexOutOfBoundsException e) {
+                System.out.println("ERROR");
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "delete";
+        }
+    }
+  learner_created: true
+- name: src/server/builder/IRequestBuilder.java
+  visible: true
+  text: |
+    package server.builder;
+
+    import server.model.Request;
+
+    import java.util.Set;
+
+    public interface IRequestBuilder {
+        Request buildRequest(String input);
+        Set<String> getSupportedTitles();
+    }
+  learner_created: true
+- name: src/server/dao/ITextDao.java
+  visible: true
+  text: |
+    package server.dao;
+
+    public interface ITextDao {
+        String getText(int index);
+        void setText(int index, String text);
+        void deleteText(int index);
+    }
+  learner_created: true
+- name: src/server/model/Request.java
+  visible: true
+  text: |
+    package server.model;
+
+    public class Request {
+        protected final int index;
+
+        public Request(int index) {
+            this.index = index - 1;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+    }
+  learner_created: true
+- name: src/server/processor/ICommandProcessor.java
+  visible: true
+  text: |
+    package server.processor;
+
+    import server.model.Request;
+
+    public interface ICommandProcessor {
+        String getSupportedTitle();
+        void execute(Request request);
+    }
+  learner_created: true
+- name: src/server/builder/impl/SetTextRequestBuilder.java
+  visible: true
+  text: |
+    package server.builder.impl;
+
+    import server.builder.IRequestBuilder;
+    import server.model.SetTextRequest;
+
+    import java.util.Set;
+
+    public class SetTextRequestBuilder implements IRequestBuilder {
+        private final Set<String> supportedTitles;
+
+        public SetTextRequestBuilder(Set<String> supportedTitles) {
+            this.supportedTitles = supportedTitles;
+        }
+
+        @Override
+        public SetTextRequest buildRequest(String input) {
+            String indexText = input.split(" ")[1];
+            int index = Integer.parseInt(indexText);
+            String argument = input.substring(input.indexOf(indexText)+1);
+            return new SetTextRequest(index, argument);
+        }
+
+        @Override
+        public Set<String> getSupportedTitles() {
+            return supportedTitles;
+        }
+    }
+  learner_created: true
+- name: src/server/exception/EmptyCellException.java
+  visible: true
+  text: |
+    package server.exception;
+
+    public class EmptyCellException extends RuntimeException {
+        public EmptyCellException(String msg) {
+            super(msg);
+        }
+    }
+  learner_created: true
+- name: src/server/utils/Validator.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import java.util.regex.Matcher;
+
+    public class Validator {
+        public static boolean validateRequest(String request) {
+            Matcher matcher = Constants.REQUEST_PATTERN.matcher(request);
+            return matcher.find();
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/GetCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.exception.EmptyCellException;
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class GetCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public GetCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public void execute(Request request) {
+            try {
+                int index = request.getIndex();
+                String text = dictionaryService.getText(index);
+                System.out.println(text);
+            } catch (IndexOutOfBoundsException | EmptyCellException e) {
+                System.out.println("ERROR");
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "get";
+        }
+
+    }
+  learner_created: true
+- name: src/server/processor/ProcessorFactory.java
+  visible: true
+  text: |
+    package server.processor;
+
+    import server.builder.IRequestBuilder;
+
+    import java.util.List;
+    import java.util.Map;
+    import java.util.function.Function;
+    import java.util.stream.Collectors;
+
+    public class ProcessorFactory {
+        private final Map<String, ICommandProcessor> processors;
+        private final List<IRequestBuilder> builders;
+
+        public ProcessorFactory(List<ICommandProcessor> processors, List<IRequestBuilder> builders) {
+            this.processors = processors.stream().collect(Collectors.toMap(ICommandProcessor::getSupportedTitle, Function.identity()));
+            this.builders = builders;
+        }
+
+        public ICommandProcessor getProcessor(String title) {
+            return processors.get(title);
+        }
+
+        public IRequestBuilder getBuilder(String title) {
+            for (IRequestBuilder builder : builders) {
+                if(builder.getSupportedTitles().contains(title)){
+                    return builder;
+                }
+            }
+            throw new IllegalArgumentException("Unsupported title");
+        }
+    }
+  learner_created: true
+- name: src/server/builder/impl/RequestBuilder.java
+  visible: true
+  text: |
+    package server.builder.impl;
+
+    import server.builder.IRequestBuilder;
+    import server.model.Request;
+
+    import java.util.Set;
+
+    public class RequestBuilder implements IRequestBuilder {
+        private final Set<String> supportedTitles;
+
+        public RequestBuilder(Set<String> supportedTitles) {
+            this.supportedTitles = supportedTitles;
+        }
+
+        @Override
+        public Request buildRequest(String input) {
+            String[] parts = input.split(" ");
+            int index = Integer.parseInt(parts[1]);
+            return new Request(index);
+        }
+
+        @Override
+        public Set<String> getSupportedTitles() {
+            return supportedTitles;
+        }
+    }
+  learner_created: true
+- name: src/server/utils/Constants.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import java.util.regex.Pattern;
+
+    public class Constants {
+        public static final Pattern REQUEST_PATTERN = Pattern.compile("^((delete|get) \\d+)|set \\d+ \\w+|exit$");
+    }
+  learner_created: true
+- name: src/server/utils/ConsoleReader.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import server.model.Request;
+
+    import java.util.Scanner;
+
+    public class ConsoleReader {
+        private static final Scanner scanner = new Scanner(System.in);
+
+        public static String readText() {
+            return scanner.nextLine();
+        }
+    }
+  learner_created: true
+- name: src/server/service/impl/DictionaryService.java
+  visible: true
+  text: |
+    package server.service.impl;
+
+    import server.dao.ITextDao;
+    import server.service.IDictionaryService;
+
+    public class DictionaryService implements IDictionaryService {
+        private final ITextDao textDao;
+
+        public DictionaryService(ITextDao textDao) {
+            this.textDao = textDao;
+        }
+
+        @Override
+        public String getText(int index) {
+            return textDao.getText(index);
+        }
+
+        @Override
+        public void setText(int index, String text) {
+            textDao.setText(index, text);
+        }
+
+        @Override
+        public void deleteText(int index) {
+            textDao.deleteText(index);
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/SetCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.model.Request;
+    import server.model.SetTextRequest;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class SetCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public SetCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public void execute(Request request) {
+            try {
+                SetTextRequest setTextRequest = (SetTextRequest) request;
+                int index = setTextRequest.getIndex();
+                String argument = setTextRequest.getArgument();
+                dictionaryService.setText(index, argument);
+                System.out.println("OK");
+            } catch (IndexOutOfBoundsException e) {
+                System.out.println("ERROR");
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "set";
+        }
+    }
+  learner_created: true
+- name: src/server/service/IDictionaryService.java
+  visible: true
+  text: |
+    package server.service;
+
+    public interface IDictionaryService {
+        String getText(int index);
+        void setText(int index, String text);
+        void deleteText(int index);
+    }
+  learner_created: true
+- name: src/client/ClientApp.java
+  visible: true
+  learner_created: true
+- name: src/server/ServerApp.java
+  visible: true
+  text: |
+    package server;
+
+    import server.builder.IRequestBuilder;
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.processor.ProcessorFactory;
+    import server.utils.ConsoleReader;
+    import server.utils.Validator;
+
+    public class Application {
+        private final ProcessorFactory factory;
+
+        public Application(ProcessorFactory factory) {
+            this.factory = factory;
+        }
+
+        public void run() {
+            String input;
+            String operationTitle;
+            ICommandProcessor processor;
+            IRequestBuilder requestBuilder;
+            Request request;
+            while (true) {
+                input = ConsoleReader.readText();
+                if (!Validator.validateRequest(input)) {
+                    break;
+                }
+                if (input.equalsIgnoreCase("exit")) {
+                    return;
+                }
+                operationTitle = input.substring(0, input.indexOf(' '));
+                requestBuilder = factory.getBuilder(operationTitle);
+                processor = factory.getProcessor(operationTitle);
+                request = requestBuilder.buildRequest(input);
+                processor.execute(request);
+            }
+        }
+    }
+  learner_created: true
+feedback_link: https://hyperskill.org/learn/step/5491#comment
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Thu, 29 Sep 2022 09:28:28 UTC
+record: 2

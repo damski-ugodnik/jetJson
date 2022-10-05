@@ -1,0 +1,657 @@
+type: edu
+files:
+- name: src/client/Main.java
+  visible: true
+  text: |
+    package client;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: src/server/Main.java
+  visible: true
+  text: |
+    package server;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: test/JsonDatabaseTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.dynamic.DynamicTest;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testing.TestedProgram;
+
+    public class JsonDatabaseTest extends StageTest<String> {
+
+        private static final String OK_STATUS = "OK";
+        private static final String ERROR_STATUS = "ERROR";
+
+        private static final String WRONG_EXIT = "The server should stop when client sends 'exit' request";
+        private static final String WRONG_GET_EMPTY_CELL_WITH_ERROR = "When a client tries to get an empty cell from " +
+                "the server, the server should response with 'ERROR' and the client should print that response";
+        private static final String WRONG_SET_VALUE_TO_CELL_WITH_OK = "When a client tries to save a value on" +
+                " the server, the server should save the value and response with '" + OK_STATUS + "'. The client should " +
+                "print that response";
+        private static final String WRONG_GET_VALUE = "When a client tries to get a not empty cell from the server, " +
+                "the server should response with a value of the cell. The client should pint received value.\n" +
+                "May be the problem is in processing 'set' action:\nIf the specified cell already contains " +
+                "information, you should simply rewrite it.";
+        private static final String WRONG_DELETE = "When a client tries to delete a value from the cell on the server," +
+                " the server should assign an empty string to this cell and response with '" + OK_STATUS + "'.";
+        private static final String WRONG_DELETE_EMPTY = "When a client tries to delete a cell with an empty value from the server," +
+                " the server should assign an empty string to this cell and response with '" + OK_STATUS + "'.";
+        private static final String WRONG_DELETE_INDEX_OUT_OF_BOUNDS = "When a user tries to delete a cell which index " +
+                "is less than 0 or greater than 1000, the server should response with  '" + ERROR_STATUS + "'.";
+
+        @DynamicTest(order = 1)
+        CheckResult checkExit() {
+
+            TestedProgram server = getServer();
+            server.startInBackground();
+
+            TestedProgram client = getClient();
+            client.start("-t", "exit");
+
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            if (!server.isFinished()) {
+                server.stop();
+                return CheckResult.wrong(WRONG_EXIT);
+            }
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 2)
+        CheckResult testInputs() {
+
+            TestedProgram server = getServer();
+            server.startInBackground();
+
+            TestedProgram client;
+            String output;
+            String expectedValue;
+
+            client = getClient();
+            output = client.start("-t", "get", "-i", "1");
+            if (!output.toUpperCase().contains(ERROR_STATUS)) {
+                return CheckResult.wrong(WRONG_GET_EMPTY_CELL_WITH_ERROR);
+            }
+
+            client = getClient();
+            output = client.start("-t", "set", "-i", "1", "-m", "Hello world!");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_SET_VALUE_TO_CELL_WITH_OK);
+            }
+
+            client = getClient();
+            output = client.start("-t", "set", "-i", "1", "-m", "HelloWorld!");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_SET_VALUE_TO_CELL_WITH_OK);
+            }
+
+            client = getClient();
+            output = client.start("-t", "get", "-i", "1");
+            expectedValue = "HelloWorld!";
+            if (!output.contains(expectedValue)) {
+                return CheckResult.wrong(WRONG_GET_VALUE +
+                        "\nExpected:\n" + expectedValue + "\nYour output:\n" + output);
+            }
+
+            client = getClient();
+            output = client.start("-t", "delete", "-i", "1");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_DELETE);
+            }
+
+            client = getClient();
+            output = client.start("-t", "delete", "-i", "1");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_DELETE_EMPTY);
+            }
+
+            client = getClient();
+            output = client.start("-t", "get", "-i", "1");
+            if (!output.toUpperCase().contains(ERROR_STATUS)) {
+                return CheckResult.wrong(WRONG_GET_EMPTY_CELL_WITH_ERROR + "\nMay be after deleting a cell you didn't " +
+                        "assign an empty value to it.");
+            }
+
+            client = getClient();
+            output = client.start("-t", "set", "-i", "55", "-m", "Some text here");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_SET_VALUE_TO_CELL_WITH_OK);
+            }
+
+            client = getClient();
+            output = client.start("-t", "get", "-i", "55");
+            expectedValue = "Some text here";
+            if (!output.contains(expectedValue)) {
+                return CheckResult.wrong(WRONG_GET_VALUE +
+                        "\nExpected:\n" + expectedValue + "\nYour output:\n" + output);
+            }
+
+            client = getClient();
+            output = client.start("-t", "get", "-i", "56");
+            if (!output.toUpperCase().contains(ERROR_STATUS)) {
+                return CheckResult.wrong(WRONG_GET_EMPTY_CELL_WITH_ERROR);
+            }
+
+            client = getClient();
+            output = client.start("-t", "delete", "-i", "55");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_DELETE);
+            }
+
+            client = getClient();
+            output = client.start("-t", "delete", "-i", "56");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_DELETE_EMPTY);
+            }
+
+            client = getClient();
+            output = client.start("-t", "delete", "-i", "100");
+            if (!output.toUpperCase().contains(OK_STATUS)) {
+                return CheckResult.wrong(WRONG_DELETE_EMPTY);
+            }
+
+            client = getClient();
+            output = client.start("-t", "delete", "-i", "1001");
+            if (!output.toUpperCase().contains(ERROR_STATUS)) {
+                return CheckResult.wrong(WRONG_DELETE_INDEX_OUT_OF_BOUNDS);
+            }
+
+            client = getClient();
+            client.start("-t", "exit");
+
+            return CheckResult.correct();
+        }
+
+
+        private static TestedProgram getClient() {
+            return new TestedProgram("client");
+        }
+
+        private static TestedProgram getServer() {
+            return new TestedProgram("server");
+        }
+
+        private static void stopServer() {
+            TestedProgram client = getClient();
+            client.start("-t", "exit");
+        }
+    }
+  learner_created: false
+- name: src/server/dao/impl/InMemoryTextDao.java
+  visible: true
+  text: |
+    package server.dao.impl;
+
+    import server.exception.EmptyCellException;
+    import server.dao.ITextDao;
+
+    import java.util.Arrays;
+
+    public class InMemoryTextDao implements ITextDao {
+        private final String[] cells;
+
+        public InMemoryTextDao() {
+            this.cells = new String[100];
+            Arrays.fill(cells, "");
+        }
+
+        @Override
+        public String getText(int index) {
+            if(cells[index].isEmpty()) {
+                throw new EmptyCellException("The cell is empty");
+            }
+            return cells[index];
+        }
+
+        @Override
+        public void setText(int index, String text) {
+            cells[index] = text;
+        }
+
+        @Override
+        public void deleteText(int index) {
+            cells[index] = "";
+        }
+    }
+  learner_created: true
+- name: src/client/ClientApp.java
+  visible: true
+  text: |
+    package client;
+
+    import java.io.DataInputStream;
+    import java.io.DataOutputStream;
+    import java.io.IOException;
+    import java.net.Socket;
+
+    public class ClientApp {
+        private final Socket socket;
+
+        public ClientApp(Socket socket) {
+            this.socket = socket;
+        }
+
+        public void run() {
+            System.out.println("Client started!");
+            try (
+                    DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
+                    DataInputStream inputStream = new DataInputStream(socket.getInputStream())
+            ) {
+                String output = "Give me a record # 12";
+                outputStream.writeUTF(output);
+                String serverResponse = inputStream.readUTF();
+                System.out.printf("""
+                        Sent: %s
+                        Received: %s
+                        """, output, serverResponse);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/DeleteCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class DeleteCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public DeleteCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public void execute(Request request) {
+            try {
+                int index = request.getIndex();
+                dictionaryService.deleteText(index);
+                System.out.println("OK");
+            } catch (IndexOutOfBoundsException e) {
+                System.out.println("ERROR");
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "delete";
+        }
+    }
+  learner_created: true
+- name: src/server/dao/ITextDao.java
+  visible: true
+  text: |
+    package server.dao;
+
+    public interface ITextDao {
+        String getText(int index);
+        void setText(int index, String text);
+        void deleteText(int index);
+    }
+  learner_created: true
+- name: src/server/processor/ICommandProcessor.java
+  visible: true
+  text: |
+    package server.processor;
+
+    import server.model.Request;
+
+    public interface ICommandProcessor {
+        String getSupportedTitle();
+        void execute(Request request);
+    }
+  learner_created: true
+- name: src/server/exception/EmptyCellException.java
+  visible: true
+  text: |
+    package server.exception;
+
+    public class EmptyCellException extends RuntimeException {
+        public EmptyCellException(String msg) {
+            super(msg);
+        }
+    }
+  learner_created: true
+- name: src/server/ServerApp.java
+  visible: true
+  text: |
+    package server;
+
+    import server.processor.ProcessorFactory;
+    import server.utils.Constants;
+
+    import java.io.DataInputStream;
+    import java.io.DataOutputStream;
+    import java.io.IOException;
+    import java.net.ServerSocket;
+    import java.net.Socket;
+    import java.util.regex.Matcher;
+
+    public class ServerApp {
+        private final ServerSocket serverSocket;
+        private final ProcessorFactory factory;
+
+        public ServerApp(ProcessorFactory factory, ServerSocket serverSocket) {
+            this.serverSocket = serverSocket;
+            this.factory = factory;
+        }
+
+        public void run() {
+            System.out.println("Server started!");
+            try (
+                    Socket socket = serverSocket.accept();
+                    DataInputStream inputStream = new DataInputStream(socket.getInputStream());
+                    DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream())
+            ) {
+                String clientInput = inputStream.readUTF();
+                Matcher matcher = Constants.CLIENT_SERVER_REQUEST_PATTERN.matcher(clientInput);
+                if(matcher.find()) {
+                    int recordNumber = Integer.parseInt(matcher.group(2));
+                    String serverOutput = String.format("A record # %d was sent!", recordNumber);
+                    outputStream.writeUTF(serverOutput);
+                    System.out.printf("""
+                            Received: %s
+                            Sent: %s
+                            """, clientInput, serverOutput);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+  learner_created: true
+- name: src/server/utils/Validator.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import java.util.regex.Matcher;
+
+    public class Validator {
+        public static boolean validateRequest(String request) {
+            Matcher matcher = Constants.REQUEST_PATTERN.matcher(request);
+            return matcher.matches();
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/GetCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.exception.EmptyCellException;
+    import server.model.Request;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class GetCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public GetCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public void execute(Request request) {
+            try {
+                int index = request.getIndex();
+                String text = dictionaryService.getText(index);
+                System.out.println(text);
+            } catch (IndexOutOfBoundsException | EmptyCellException e) {
+                System.out.println("ERROR");
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "get";
+        }
+
+    }
+  learner_created: true
+- name: src/server/processor/ProcessorFactory.java
+  visible: true
+  text: |
+    package server.processor;
+
+    import server.builder.IRequestBuilder;
+
+    import java.util.List;
+    import java.util.Map;
+    import java.util.function.Function;
+    import java.util.stream.Collectors;
+
+    public class ProcessorFactory {
+        private final Map<String, ICommandProcessor> processors;
+        private final List<IRequestBuilder> builders;
+
+        public ProcessorFactory(List<ICommandProcessor> processors, List<IRequestBuilder> builders) {
+            this.processors = processors.stream().collect(Collectors.toMap(ICommandProcessor::getSupportedTitle, Function.identity()));
+            this.builders = builders;
+        }
+
+        public ICommandProcessor getProcessor(String title) {
+            return processors.get(title);
+        }
+
+        public IRequestBuilder getBuilder(String title) {
+            for (IRequestBuilder builder : builders) {
+                if(builder.getSupportedTitles().contains(title)){
+                    return builder;
+                }
+            }
+            throw new IllegalArgumentException("Unsupported title");
+        }
+    }
+  learner_created: true
+- name: src/server/utils/Constants.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import java.net.InetAddress;
+    import java.util.regex.Pattern;
+
+    public class Constants {
+        public static final Pattern REQUEST_PATTERN = Pattern.compile("^(delete|get) (\\d+)|(set) (\\d+) (\\w+)|exit$");
+        public static final String ADDRESS = "127.0.0.1";
+        public static final int PORT = 35612;
+        public static final Pattern CLIENT_SERVER_REQUEST_PATTERN = Pattern.compile("^(Give me a record # )(\\d+)$");
+    }
+  learner_created: true
+- name: src/server/utils/ConsoleReader.java
+  visible: true
+  text: |
+    package server.utils;
+
+    import server.model.Request;
+
+    import java.util.Scanner;
+
+    public class ConsoleReader {
+        private static final Scanner scanner = new Scanner(System.in);
+
+        public static String readText() {
+            return scanner.nextLine();
+        }
+    }
+  learner_created: true
+- name: src/server/service/impl/DictionaryService.java
+  visible: true
+  text: |
+    package server.service.impl;
+
+    import server.dao.ITextDao;
+    import server.service.IDictionaryService;
+
+    public class DictionaryService implements IDictionaryService {
+        private final ITextDao textDao;
+
+        public DictionaryService(ITextDao textDao) {
+            this.textDao = textDao;
+        }
+
+        @Override
+        public String getText(int index) {
+            return textDao.getText(index);
+        }
+
+        @Override
+        public void setText(int index, String text) {
+            textDao.setText(index, text);
+        }
+
+        @Override
+        public void deleteText(int index) {
+            textDao.deleteText(index);
+        }
+    }
+  learner_created: true
+- name: src/server/processor/impl/SetCommandProcessor.java
+  visible: true
+  text: |
+    package server.processor.impl;
+
+    import server.model.Request;
+    import server.model.SetTextRequest;
+    import server.processor.ICommandProcessor;
+    import server.service.IDictionaryService;
+
+    public class SetCommandProcessor implements ICommandProcessor {
+        private final IDictionaryService dictionaryService;
+
+        public SetCommandProcessor(IDictionaryService dictionaryService) {
+            this.dictionaryService = dictionaryService;
+        }
+
+        @Override
+        public void execute(Request request) {
+            try {
+                SetTextRequest setTextRequest = (SetTextRequest) request;
+                int index = setTextRequest.getIndex();
+                String argument = setTextRequest.getArgument();
+                dictionaryService.setText(index, argument);
+                System.out.println("OK");
+            } catch (IndexOutOfBoundsException e) {
+                System.out.println("ERROR");
+            }
+        }
+
+        @Override
+        public String getSupportedTitle() {
+            return "set";
+        }
+    }
+  learner_created: true
+- name: src/server/service/IDictionaryService.java
+  visible: true
+  text: |
+    package server.service;
+
+    public interface IDictionaryService {
+        String getText(int index);
+        void setText(int index, String text);
+        void deleteText(int index);
+    }
+  learner_created: true
+- name: src/client/builder/impl/SetTextRequestBuilder.java
+  visible: true
+  text: |
+    package server.builder.impl;
+
+    import server.builder.IRequestBuilder;
+    import server.model.SetTextRequest;
+
+    import java.util.Set;
+
+    public class SetTextRequestBuilder implements IRequestBuilder {
+        public SetTextRequestBuilder() {
+        }
+
+        @Override
+        public SetTextRequest buildRequest(String input) {
+            String indexText = input.split(" ")[1];
+            int index = Integer.parseInt(indexText);
+            String argument = input.substring(input.indexOf(indexText) + 1);
+            return new SetTextRequest(index, argument);
+        }
+
+        @Override
+        public Set<String> getSupportedTitles() {
+            return Set.of("set");
+        }
+    }
+  learner_created: true
+- name: src/client/builder/impl/RequestBuilder.java
+  visible: true
+  text: |
+    package server.builder.impl;
+
+    import server.builder.IRequestBuilder;
+    import server.model.Request;
+
+    import java.util.Set;
+
+    public class RequestBuilder implements IRequestBuilder {
+        @Override
+        public Request buildRequest(String input) {
+            String[] parts = input.split(" ");
+            int index = Integer.parseInt(parts[1]);
+            return new Request(index);
+        }
+
+        @Override
+        public Set<String> getSupportedTitles() {
+            return Set.of("get", "delete");
+        }
+    }
+  learner_created: true
+- name: src/client/builder/IRequestBuilder.java
+  visible: true
+  text: |
+    package server.builder;
+
+    import server.model.Request;
+
+    import java.util.Set;
+
+    public interface IRequestBuilder {
+        Request buildRequest(String input);
+        Set<String> getSupportedTitles();
+    }
+  learner_created: true
+- name: src/server/model/Request.java
+  visible: true
+  learner_created: true
+feedback_link: https://hyperskill.org/learn/step/5492#comment
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Fri, 30 Sep 2022 06:41:34 UTC
+record: 3
